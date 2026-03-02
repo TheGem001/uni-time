@@ -247,40 +247,68 @@
             // Reset ring classes
             ring.classList.remove('text-emerald-500', 'text-amber-500', 'text-brand-500', 'text-slate-200');
 
-            if (schedule.length === 0) {
-                els.status.innerText = "Relax";
-                els.timer.innerText = "Free Day";
-                els.title.innerText = "No Classes Today";
-                els.room.innerText = "--";
-                els.teacher.innerText = "--";
-                els.teacherContainer.style.display = "none";
-                els.time.innerText = "--:--";
-                els.badge.innerText = "OFF DAY";
-                els.badge.className = "px-2.5 py-1 rounded-md bg-slate-100 text-slate-500 text-[10px] font-bold uppercase tracking-widest";
-                ring.style.strokeDashoffset = 0; 
-                ring.classList.add('text-slate-200');
-                return;
-            }
+            let activeClass = null;
+            let nextClass = null;
+            let dayOffset = 0;
+            let isDoneForToday = false;
 
-            let activeIdx = -1, nextIdx = -1;
-            
-            for (let i = 0; i < schedule.length; i++) {
-                const startMins = timeToMins(schedule[i].start);
-                const endMins = timeToMins(schedule[i].end);
-                if (currentMins >= startMins && currentMins < endMins) {
-                    activeIdx = i; break;
-                } else if (startMins > currentMins) {
-                    nextIdx = i; break;
+            // 1. Check today's schedule
+            if (schedule.length > 0) {
+                let foundFutureOrActive = false;
+                for (let i = 0; i < schedule.length; i++) {
+                    const startMins = timeToMins(schedule[i].start);
+                    const endMins = timeToMins(schedule[i].end);
+                    if (currentMins >= startMins && currentMins < endMins) {
+                        activeClass = schedule[i];
+                        foundFutureOrActive = true;
+                        break;
+                    } else if (startMins > currentMins) {
+                        nextClass = schedule[i];
+                        foundFutureOrActive = true;
+                        break;
+                    }
+                }
+                // If classes exist today, but we are past all of them
+                if (!foundFutureOrActive) {
+                    isDoneForToday = true;
                 }
             }
 
-            if (activeIdx !== -1) {
+            // 2. If we are "Done for today", show "All Done" until midnight.
+            if (isDoneForToday) {
+                els.status.innerText = "All Done";
+                els.timer.innerText = "Free!";
+                els.title.innerText = "Uni hours completed";
+                els.room.innerText = "--";
+                els.teacherContainer.style.display = "none";
+                els.time.innerText = "--:--";
+                els.badge.innerText = "COMPLETED";
+                els.badge.className = "px-2.5 py-1 rounded-md bg-slate-100 text-slate-500 text-[10px] font-bold uppercase tracking-widest";
+                ring.style.strokeDashoffset = 0; 
+                ring.classList.add('text-slate-300');
+                return;
+            }
+
+            // 3. If no active and no next class, it must be a free day. Look ahead in the week!
+            if (!activeClass && !nextClass) {
+                for (let d = 1; d <= 7; d++) {
+                    const checkDay = (today + d) % 7;
+                    const checkSchedule = timetable[checkDay] || [];
+                    if (checkSchedule.length > 0) {
+                        nextClass = checkSchedule[0];
+                        dayOffset = d;
+                        break;
+                    }
+                }
+            }
+
+            // 4. Update UI
+            if (activeClass) {
                 // ACTIVE CLASS OR BREAK
-                const activeClass = schedule[activeIdx];
                 const startMins = timeToMins(activeClass.start);
                 const endMins = timeToMins(activeClass.end);
-                
                 const remaining = endMins - currentMins;
+                
                 els.status.innerText = activeClass.isBreak ? "Break Ends In" : "Class Ends In";
                 els.timer.innerText = formatCountdown(remaining);
                 els.title.innerText = activeClass.title;
@@ -310,14 +338,28 @@
                 const progress = (currentMins - startMins) / (endMins - startMins);
                 ring.style.strokeDashoffset = ringCircumference - (progress * ringCircumference);
 
-            } else if (nextIdx !== -1) {
-                // WAITING FOR NEXT
-                const nextClass = schedule[nextIdx];
-                const startMins = timeToMins(nextClass.start);
-                const remaining = startMins - currentMins;
+            } else if (nextClass) {
+                // WAITING FOR NEXT (Today or Future Day)
+                const nextStartMins = timeToMins(nextClass.start);
+                let remainingMins;
                 
-                els.status.innerText = "Starts In";
-                els.timer.innerText = formatCountdown(remaining);
+                if (dayOffset === 0) {
+                    remainingMins = nextStartMins - currentMins;
+                    els.status.innerText = "Starts In";
+                } else {
+                    const minsLeftToday = (24 * 60) - currentMins;
+                    const minsBetween = (dayOffset - 1) * 24 * 60;
+                    remainingMins = minsLeftToday + minsBetween + nextStartMins;
+                    
+                    if (dayOffset === 1) {
+                        els.status.innerText = "Starts Tomorrow";
+                    } else {
+                        const targetDayIndex = (today + dayOffset) % 7;
+                        els.status.innerText = `Starts ${shortDays[targetDayIndex]}`;
+                    }
+                }
+                
+                els.timer.innerText = formatCountdown(remainingMins);
                 els.title.innerText = nextClass.title;
                 els.room.innerText = nextClass.room;
                 
@@ -328,28 +370,39 @@
                     els.teacherContainer.style.display = "none";
                 }
 
-                els.time.innerText = `Starts at ${formatTimeDisplay(nextClass.start)}`;
+                if (dayOffset === 0) {
+                    els.time.innerText = `Today at ${formatTimeDisplay(nextClass.start)}`;
+                } else {
+                    const targetDayIndex = (today + dayOffset) % 7;
+                    els.time.innerText = `${shortDays[targetDayIndex]} at ${formatTimeDisplay(nextClass.start)}`;
+                }
                 
                 els.badge.innerText = "UP NEXT";
                 els.badge.className = "px-2.5 py-1 rounded-md bg-amber-100 text-amber-700 text-[10px] font-bold uppercase tracking-widest";
                 ring.classList.add('text-amber-500');
 
-                let maxWait = 120; // visual fill maxes out at 2 hours
-                let progress = remaining <= maxWait ? remaining / maxWait : 1;
+                // Progress ring for waiting
+                let progress = 1;
+                if (dayOffset === 0) {
+                    let maxWait = 120; // 2 hours visual cap
+                    if (remainingMins <= maxWait) {
+                        progress = remainingMins / maxWait;
+                    }
+                }
                 ring.style.strokeDashoffset = ringCircumference - (progress * ringCircumference);
 
             } else {
-                // DONE FOR THE DAY
-                els.status.innerText = "All Done";
-                els.timer.innerText = "Free!";
-                els.title.innerText = "Uni hours completed";
+                // Failsafe: No classes all week (empty timetable)
+                els.status.innerText = "Relax";
+                els.timer.innerText = "No Classes";
+                els.title.innerText = "Timetable is empty";
                 els.room.innerText = "--";
                 els.teacherContainer.style.display = "none";
                 els.time.innerText = "--:--";
-                els.badge.innerText = "COMPLETED";
+                els.badge.innerText = "OFF DAY";
                 els.badge.className = "px-2.5 py-1 rounded-md bg-slate-100 text-slate-500 text-[10px] font-bold uppercase tracking-widest";
                 ring.style.strokeDashoffset = 0; 
-                ring.classList.add('text-slate-300');
+                ring.classList.add('text-slate-200');
             }
         }
 
