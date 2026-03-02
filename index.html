@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Uni Timetable Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['"Plus Jakarta Sans"', 'sans-serif'] },
+                    colors: {
+                        brand: {
+                            50: '#eef2ff',
+                            100: '#e0e7ff',
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            900: '#312e81'
+                        }
+                    },
+                    boxShadow: {
+                        'soft': '0 10px 40px -10px rgba(0,0,0,0.08)',
+                        'inner-soft': 'inset 0 2px 4px 0 rgba(0,0,0,0.02)'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #f8fafc; /* Very light slate */
+            color: #0f172a;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* Smooth ring animation */
+        .progress-ring__circle {
+            transition: stroke-dashoffset 1s ease-in-out;
+            transform: rotate(-90deg);
+            transform-origin: 50% 50%;
+            stroke-linecap: round;
+        }
+
+        /* Hide scrollbar */
+        ::-webkit-scrollbar { display: none; }
+        
+        .active-class-row {
+            background-color: #eef2ff;
+            border-left: 4px solid #4f46e5;
+        }
+        
+        .active-break-row {
+            background-color: #ecfdf5;
+            border-left: 4px solid #10b981;
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center min-h-screen py-6 px-4 sm:px-6">
+
+    <div class="w-full max-w-md space-y-6 pb-10">
+        
+        <!-- Header -->
+        <header class="flex justify-between items-end px-2">
+            <div>
+                <p class="text-slate-500 font-semibold text-xs tracking-wider uppercase mb-1" id="current-date-display">Loading...</p>
+                <h1 class="text-3xl font-extrabold tracking-tight text-slate-900">Today</h1>
+            </div>
+            <div class="text-right">
+                <div class="text-2xl font-bold tabular-nums text-brand-600" id="current-time">00:00</div>
+            </div>
+        </header>
+
+        <!-- Main Tracker Card (Now Light & Soft) -->
+        <main class="bg-white rounded-[2rem] p-6 shadow-soft relative overflow-hidden border border-slate-100">
+            <!-- Decorative background blob -->
+            <div class="absolute -top-20 -right-20 w-40 h-40 bg-brand-50 rounded-full blur-3xl"></div>
+            
+            <div class="flex flex-col items-center relative z-10">
+                
+                <!-- Circular Timer -->
+                <div class="relative w-52 h-52 mb-6">
+                    <!-- Background Track -->
+                    <svg class="w-full h-full" viewBox="0 0 120 120">
+                        <circle class="text-slate-100 stroke-current" stroke-width="8" cx="60" cy="60" r="50" fill="transparent"></circle>
+                        <circle id="progress-ring" class="text-brand-500 stroke-current progress-ring__circle drop-shadow-md" stroke-width="8" cx="60" cy="60" r="50" fill="transparent" stroke-dasharray="314.159" stroke-dashoffset="314.159"></circle>
+                    </svg>
+                    
+                    <!-- Center Content -->
+                    <div class="absolute inset-0 flex flex-col items-center justify-center pt-2">
+                        <span class="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1" id="status-label">--</span>
+                        <span class="text-4xl font-extrabold tabular-nums tracking-tighter text-slate-800" id="countdown-timer">--:--:--</span>
+                    </div>
+                </div>
+
+                <!-- Active Class Info -->
+                <div class="w-full bg-slate-50/80 rounded-2xl p-4 border border-slate-100/50 shadow-inner-soft">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="px-2.5 py-1 rounded-md bg-white text-slate-500 shadow-sm border border-slate-100 text-[10px] font-bold uppercase tracking-widest" id="class-type-badge">STATUS</span>
+                        <span class="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
+                            <i data-lucide="clock" class="w-3.5 h-3.5 text-slate-400"></i>
+                            <span id="class-time">--:--</span>
+                        </span>
+                    </div>
+                    
+                    <h2 class="text-lg font-bold leading-tight mb-2 text-slate-800" id="class-title">No Class Active</h2>
+                    
+                    <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-slate-500 font-medium">
+                        <span class="flex items-center gap-1.5">
+                            <i data-lucide="map-pin" class="w-4 h-4 text-brand-500"></i> 
+                            <span id="class-room">--</span>
+                        </span>
+                        <span class="flex items-center gap-1.5" id="class-teacher-container">
+                            <i data-lucide="user" class="w-4 h-4 text-brand-500"></i> 
+                            <span id="class-teacher">--</span>
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Day Selector Tabs -->
+        <nav class="flex justify-between items-center bg-white p-1.5 rounded-2xl shadow-sm border border-slate-100 overflow-x-auto gap-1" id="day-tabs">
+            <!-- Injected via JS -->
+        </nav>
+
+        <!-- Schedule List -->
+        <section>
+            <div class="flex items-center justify-between px-2 mb-4">
+                <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                    <i data-lucide="calendar-days" class="w-5 h-5 text-brand-500"></i>
+                    Schedule
+                </h3>
+                <span class="text-xs font-bold text-slate-400 bg-slate-200/50 px-2 py-1 rounded-md" id="selected-day-label">Monday</span>
+            </div>
+            
+            <div class="space-y-3" id="schedule-list">
+                <!-- Injected via JS -->
+            </div>
+        </section>
+
+    </div>
+
+    <script>
+        lucide.createIcons();
+
+        // --- UPDATED TIMETABLE DATA FROM JSON ---
+        const timetable = {
+            1: [ // Monday
+                { start: "10:30", end: "11:10", title: "Object Oriented Programming (3+1)", room: "2.16", teacher: "Mam Zara Mansoor", type: "Lecture" },
+                { start: "11:10", end: "12:30", title: "Discrete Structures (3)", room: "2.16", teacher: "Mam Rubab Sheikh", type: "Lecture" }
+            ],
+            2: [ // Tuesday
+                { start: "10:30", end: "11:10", title: "Object Oriented Programming (3+1)", room: "2.16", teacher: "Mam Zara Mansoor", type: "Lecture" },
+                { start: "11:10", end: "12:30", title: "Intro to Software Engineering (3)", room: "2.16", teacher: "Ms. Alisha Fida", type: "Lecture" }
+            ],
+            3: [ // Wednesday
+                { start: "10:30", end: "11:10", title: "Digital Logic Design (3)", room: "IOP 1.03", teacher: "Dr. Faisal Mukhtar", type: "Lecture" },
+                { start: "11:10", end: "12:30", title: "Probability & Statistics (3)", room: "IOP 1.03", teacher: "Dr. M. Rajab", type: "Lecture" }
+            ],
+            4: [ // Thursday
+                { start: "10:30", end: "11:10", title: "Digital Logic Design (3)", room: "IOP 1.03", teacher: "Dr. Faisal Mukhtar", type: "Lecture" },
+                { start: "11:10", end: "12:30", title: "Technical & Business Writing (3)", room: "IOP 1.03", teacher: "Mam Saba Abbas", type: "Lecture" }
+            ],
+            5: [ // Friday
+                // No classes found in the provided data
+            ]
+        };
+
+        const daysMap = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+        const shortDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+        const ringCircumference = 2 * Math.PI * 50; // r=50
+        
+        let currentDayIndex = new Date().getDay();
+        // If it's weekend, default to Monday for the view
+        let selectedDayIndex = (currentDayIndex === 0 || currentDayIndex === 6) ? 1 : currentDayIndex; 
+
+        function timeToMins(timeStr) {
+            const [h, m] = timeStr.split(':').map(Number);
+            return h * 60 + m;
+        }
+
+        function formatTimeDisplay(timeStr) {
+            const [h, m] = timeStr.split(':').map(Number);
+            const ampm = h >= 12 ? 'PM' : 'AM';
+            const h12 = h % 12 || 12;
+            return `${h12.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')} ${ampm}`;
+        }
+
+        function initTabs() {
+            const tabsContainer = document.getElementById('day-tabs');
+            let tabsHTML = '';
+            
+            // Generate tabs for Mon(1) to Fri(5)
+            for(let i = 1; i <= 5; i++) {
+                const isActive = i === selectedDayIndex;
+                tabsHTML += `
+                    <button onclick="selectDay(${i})" id="tab-${i}" 
+                        class="flex-1 py-2 text-xs font-bold rounded-xl transition-all duration-200 ${isActive ? 'bg-brand-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-100'}">
+                        ${shortDays[i]}
+                    </button>
+                `;
+            }
+            tabsContainer.innerHTML = tabsHTML;
+            renderScheduleList();
+        }
+
+        function selectDay(dayIndex) {
+            selectedDayIndex = dayIndex;
+            initTabs(); // Re-render tabs to update active state
+        }
+
+        function updateApp() {
+            const now = new Date();
+            const today = now.getDay();
+            const currentMins = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+
+            // Header info
+            document.getElementById('current-time').innerText = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+            document.getElementById('current-date-display').innerText = now.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+
+            // Analyze REAL TIME for the top ring (only tracks 'today')
+            analyzeRealTime(today, currentMins);
+            
+            // Re-highlight list items based on real time if the selected tab is today
+            updateScheduleHighlight(currentMins, today);
+        }
+
+        function analyzeRealTime(today, currentMins) {
+            const schedule = timetable[today] || [];
+            const ring = document.getElementById('progress-ring');
+            
+            const els = {
+                status: document.getElementById('status-label'),
+                timer: document.getElementById('countdown-timer'),
+                title: document.getElementById('class-title'),
+                room: document.getElementById('class-room'),
+                teacher: document.getElementById('class-teacher'),
+                time: document.getElementById('class-time'),
+                badge: document.getElementById('class-type-badge'),
+                teacherContainer: document.getElementById('class-teacher-container')
+            };
+
+            // Reset ring classes
+            ring.classList.remove('text-emerald-500', 'text-amber-500', 'text-brand-500', 'text-slate-200');
+
+            if (schedule.length === 0) {
+                els.status.innerText = "Relax";
+                els.timer.innerText = "Free Day";
+                els.title.innerText = "No Classes Today";
+                els.room.innerText = "--";
+                els.teacher.innerText = "--";
+                els.teacherContainer.style.display = "none";
+                els.time.innerText = "--:--";
+                els.badge.innerText = "OFF DAY";
+                els.badge.className = "px-2.5 py-1 rounded-md bg-slate-100 text-slate-500 text-[10px] font-bold uppercase tracking-widest";
+                ring.style.strokeDashoffset = 0; 
+                ring.classList.add('text-slate-200');
+                return;
+            }
+
+            let activeIdx = -1, nextIdx = -1;
+            
+            for (let i = 0; i < schedule.length; i++) {
+                const startMins = timeToMins(schedule[i].start);
+                const endMins = timeToMins(schedule[i].end);
+                if (currentMins >= startMins && currentMins < endMins) {
+                    activeIdx = i; break;
+                } else if (startMins > currentMins) {
+                    nextIdx = i; break;
+                }
+            }
+
+            if (activeIdx !== -1) {
+                // ACTIVE CLASS OR BREAK
+                const activeClass = schedule[activeIdx];
+                const startMins = timeToMins(activeClass.start);
+                const endMins = timeToMins(activeClass.end);
+                
+                const remaining = endMins - currentMins;
+                els.status.innerText = activeClass.isBreak ? "Break Ends In" : "Class Ends In";
+                els.timer.innerText = formatCountdown(remaining);
+                els.title.innerText = activeClass.title;
+                els.room.innerText = activeClass.room;
+                
+                if (activeClass.teacher) {
+                    els.teacher.innerText = activeClass.teacher;
+                    els.teacherContainer.style.display = "flex";
+                } else {
+                    els.teacherContainer.style.display = "none";
+                }
+                
+                els.time.innerText = `${formatTimeDisplay(activeClass.start)} - ${formatTimeDisplay(activeClass.end)}`;
+                
+                els.badge.innerText = activeClass.type;
+                if(activeClass.isBreak) {
+                    els.badge.className = "px-2.5 py-1 rounded-md bg-emerald-100 text-emerald-700 text-[10px] font-bold uppercase tracking-widest";
+                    ring.classList.add('text-emerald-500');
+                } else if(activeClass.type === 'Lab') {
+                    els.badge.className = "px-2.5 py-1 rounded-md bg-violet-100 text-violet-700 text-[10px] font-bold uppercase tracking-widest";
+                    ring.classList.add('text-violet-500');
+                } else {
+                    els.badge.className = "px-2.5 py-1 rounded-md bg-brand-100 text-brand-700 text-[10px] font-bold uppercase tracking-widest";
+                    ring.classList.add('text-brand-500');
+                }
+
+                const progress = (currentMins - startMins) / (endMins - startMins);
+                ring.style.strokeDashoffset = ringCircumference - (progress * ringCircumference);
+
+            } else if (nextIdx !== -1) {
+                // WAITING FOR NEXT
+                const nextClass = schedule[nextIdx];
+                const startMins = timeToMins(nextClass.start);
+                const remaining = startMins - currentMins;
+                
+                els.status.innerText = "Starts In";
+                els.timer.innerText = formatCountdown(remaining);
+                els.title.innerText = nextClass.title;
+                els.room.innerText = nextClass.room;
+                
+                if (nextClass.teacher) {
+                    els.teacher.innerText = nextClass.teacher;
+                    els.teacherContainer.style.display = "flex";
+                } else {
+                    els.teacherContainer.style.display = "none";
+                }
+
+                els.time.innerText = `Starts at ${formatTimeDisplay(nextClass.start)}`;
+                
+                els.badge.innerText = "UP NEXT";
+                els.badge.className = "px-2.5 py-1 rounded-md bg-amber-100 text-amber-700 text-[10px] font-bold uppercase tracking-widest";
+                ring.classList.add('text-amber-500');
+
+                let maxWait = 120; // visual fill maxes out at 2 hours
+                let progress = remaining <= maxWait ? remaining / maxWait : 1;
+                ring.style.strokeDashoffset = ringCircumference - (progress * ringCircumference);
+
+            } else {
+                // DONE FOR THE DAY
+                els.status.innerText = "All Done";
+                els.timer.innerText = "Free!";
+                els.title.innerText = "Uni hours completed";
+                els.room.innerText = "--";
+                els.teacherContainer.style.display = "none";
+                els.time.innerText = "--:--";
+                els.badge.innerText = "COMPLETED";
+                els.badge.className = "px-2.5 py-1 rounded-md bg-slate-100 text-slate-500 text-[10px] font-bold uppercase tracking-widest";
+                ring.style.strokeDashoffset = 0; 
+                ring.classList.add('text-slate-300');
+            }
+        }
+
+        function formatCountdown(minsFloat) {
+            const h = Math.floor(minsFloat / 60);
+            const m = Math.floor(minsFloat % 60);
+            const s = Math.floor((minsFloat * 60) % 60);
+            return h > 0 
+                ? `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
+                : `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+        }
+
+        function renderScheduleList() {
+            const container = document.getElementById('schedule-list');
+            document.getElementById('selected-day-label').innerText = daysMap[selectedDayIndex];
+            
+            const schedule = timetable[selectedDayIndex] || [];
+
+            if (schedule.length === 0) {
+                container.innerHTML = `
+                    <div class="bg-white rounded-2xl p-6 text-center text-slate-400 border border-slate-100 shadow-sm">
+                        <i data-lucide="coffee" class="w-8 h-8 mx-auto mb-2 opacity-50 text-slate-300"></i>
+                        <p class="text-sm font-medium">No classes scheduled.</p>
+                    </div>
+                `;
+                lucide.createIcons();
+                return;
+            }
+
+            container.innerHTML = schedule.map((cls, index) => {
+                const isBreak = cls.isBreak;
+                const dotColor = isBreak ? 'bg-emerald-400' : (cls.type === 'Lab' ? 'bg-violet-400' : 'bg-brand-500');
+                
+                const teacherHtml = cls.teacher ? `
+                    <span class="flex items-center gap-1">
+                        <i data-lucide="user" class="w-3.5 h-3.5 text-slate-400"></i>
+                        ${cls.teacher}
+                    </span>
+                ` : '';
+
+                return `
+                <div id="schedule-row-${index}" class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 transition-all duration-300">
+                    <div class="flex items-start gap-4">
+                        <!-- Time Column -->
+                        <div class="flex flex-col items-end min-w-[75px] pt-0.5">
+                            <span class="text-sm font-extrabold text-slate-800">${formatTimeDisplay(cls.start)}</span>
+                            <span class="text-xs text-slate-400 font-semibold">${formatTimeDisplay(cls.end)}</span>
+                        </div>
+                        
+                        <!-- Timeline Dot -->
+                        <div class="w-1.5 h-10 rounded-full ${dotColor} mt-1 opacity-90 shadow-sm"></div>
+
+                        <!-- Info Column -->
+                        <div class="flex-1">
+                            <h4 class="text-[15px] font-bold leading-tight mb-1.5 ${isBreak ? 'text-slate-500 italic' : 'text-slate-800'}">${cls.title}</h4>
+                            <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-slate-500 font-semibold">
+                                <span class="flex items-center gap-1">
+                                    <i data-lucide="map-pin" class="w-3.5 h-3.5 text-slate-400"></i>
+                                    ${cls.room}
+                                </span>
+                                ${teacherHtml}
+                                <span class="uppercase tracking-wider font-extrabold text-[10px] px-1.5 py-0.5 rounded bg-slate-100">${cls.type}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                `;
+            }).join('');
+            
+            lucide.createIcons();
+            
+            // Force highlight update immediately after rendering
+            const now = new Date();
+            const currentMins = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+            updateScheduleHighlight(currentMins, now.getDay());
+        }
+
+        function updateScheduleHighlight(currentMins, todayIndex) {
+            const schedule = timetable[selectedDayIndex] || [];
+            
+            for (let i = 0; i < schedule.length; i++) {
+                const row = document.getElementById(`schedule-row-${i}`);
+                if (!row) continue;
+
+                // Only highlight if the tab we are looking at IS today
+                if (selectedDayIndex === todayIndex) {
+                    const startMins = timeToMins(schedule[i].start);
+                    const endMins = timeToMins(schedule[i].end);
+                    
+                    if (currentMins >= startMins && currentMins < endMins) {
+                        row.classList.add(schedule[i].isBreak ? 'active-break-row' : 'active-class-row');
+                        row.classList.remove('bg-white', 'border-slate-100'); // Override default border/bg
+                    } else {
+                        row.classList.remove('active-class-row', 'active-break-row');
+                        row.classList.add('bg-white', 'border-slate-100');
+                    }
+                } else {
+                    // Not today, remove all highlights
+                    row.classList.remove('active-class-row', 'active-break-row');
+                    row.classList.add('bg-white', 'border-slate-100');
+                }
+            }
+        }
+
+        // Initialize App
+        initTabs();
+        updateApp();
+        setInterval(updateApp, 1000);
+
+    </script>
+</body>
+</html>
